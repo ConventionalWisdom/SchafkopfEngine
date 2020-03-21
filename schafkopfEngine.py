@@ -35,19 +35,19 @@ def setzeTrumpfUndSpiel(cards,trumpf,spielArt):
         #definiere Rangfolge der Karten unter Berücksichtigung Farbe
         cards = cards.sort_values(by=['Trumpf','Farbe','Basis Rang'],ascending=False)
         cards['Spiel Rang'] = cards['Basis Rang']
-        # cards.loc[cards['Name'] == 'Ober', 'Spiel Rang'] = 0
-        # cards.loc[cards['Name'] == 'Unter', 'Spiel Rang'] = 4
         for n,v in farben.items():
             #setze einen Offset für die Farben
             if n is not trumpf:
+                #offset untereinander und gegen die Trümpfe
                 cards.loc[cards['Farbe'] == n,'Spiel Rang'] = cards.loc[cards['Farbe'] == n,'Spiel Rang'] + v*10 + 20
             if n is trumpf:
+                #offset für unter und ober
                 cards.loc[cards['Farbe'] == n,'Spiel Rang'] = cards.loc[cards['Farbe'] == n,'Spiel Rang'] + 8
-            #setze die Ober und Unter Spielwerte
+            #setze die Ober und Unter Rangordnung
             cards.loc[(cards['Name'] == 'Ober') & (cards['Farbe'] == n), 'Spiel Rang'] = v
             cards.loc[(cards['Name'] == 'Unter') & (cards['Farbe'] == n), 'Spiel Rang'] = v + 4
+        cards = cards.drop(columns='Basis Rang')
         cards = cards.sort_values(by='Spiel Rang')
-
 
     print(cards)
     return cards
@@ -56,4 +56,7 @@ if __name__ == "__main__":
     basisKarten = erstelleBlatt('lang')
     spielKarten = verteileKarten(basisKarten)
     #warte auf  Spielentscheidung
+    #TODO: logik klopfen
+    #TODO: logik spielentscheidung
     spielKarten = setzeTrumpfUndSpiel(spielKarten,'Eiche','Farbspiel')
+    #TODO: rundenlogik
