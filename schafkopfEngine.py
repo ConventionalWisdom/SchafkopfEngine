@@ -10,13 +10,13 @@ def erstelleBlatt(blattLang):
     else:
         niedrigste = 8
     werte = {'Ober' : 3, 'Unter' : 2, 'Ass' : 11, '10' : 10, 'König' : 4}
-    rang = {'Ober' : 0, 'Unter' : 1, 'Ass' : 2, '10' : 3, 'König' : 4}
+    basisRang = {'Ass':0, '10':1, 'König':2, 'Ober':3, 'Unter':4}
     for i,p in enumerate(range(9,niedrigste-1,-1)):
         werte[str(p)] = 0
-        rang[str(p)] = i+5
-    karten = pd.DataFrame([{'Farbe' : f, 'Name': nw, 'Wert' : w, 'Basis Rang' : r} for f,order in farben.items() for (nw, w),(nr, r) in zip(werte.items(),rang.items())])
-    print(karten)
-    return karten
+        basisRang[str(p)] = i+5
+    basisKarten = pd.DataFrame([{'Farbe' : f, 'Name': nw, 'Wert' : w, 'Basis Rang' : r+10*order} for f,order in farben.items() for (nw, w),(nr, r) in zip(werte.items(),basisRang.items())])
+    print(basisKarten)
+    return basisKarten
 
 def verteileKarten(karten):
     #TODO: karten Mischen und Spielern zuweisen, in 2 ViererBlöcken für Klopf-Mechanismen
@@ -32,9 +32,9 @@ def setzeTrumpfUndSpiel(cards,trumpf,spielArt):
         cards.loc[cards['Farbe'] == trumpf,'Trumpf'] = True
         cards.loc[cards['Name'] == 'Ober','Trumpf'] = True
         cards.loc[cards['Name'] == 'Unter','Trumpf'] = True
-        #definiere rangfolge der Karten
-
-
+        #definiere Rangfolge der Karten unter Berücksichtigung Farbe
+        cards = cards.sort_values(by=['Trumpf','Farbe','Basis Rang'],ascending=False)
+        # cards.groupby(['Basis Rang'])
     print(cards)
     return cards
 
