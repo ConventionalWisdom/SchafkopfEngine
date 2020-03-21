@@ -9,12 +9,12 @@ def erstelleBlatt(blattLang):
         niedrigste = 7
     else:
         niedrigste = 8
-    werte = {'Ober' : 3, 'Unter' : 2, 'Ass' : 11, '10' : 10, 'König' : 4}
+    werte = {'Ass':11, '10':10, 'König':4, 'Ober':3, 'Unter':2}
     basisRang = {'Ass':0, '10':1, 'König':2, 'Ober':3, 'Unter':4}
     for i,p in enumerate(range(9,niedrigste-1,-1)):
         werte[str(p)] = 0
         basisRang[str(p)] = i+5
-    basisKarten = pd.DataFrame([{'Farbe' : f, 'Name': nw, 'Wert' : w, 'Basis Rang' : r+10*order} for f,order in farben.items() for (nw, w),(nr, r) in zip(werte.items(),basisRang.items())])
+    basisKarten = pd.DataFrame([{'Farbe' : f, 'Name': nw, 'Wert' : w, 'Basis Rang' : r} for f,order in farben.items() for (nw, w),(nr, r) in zip(werte.items(),basisRang.items())])
     print(basisKarten)
     return basisKarten
 
@@ -34,7 +34,21 @@ def setzeTrumpfUndSpiel(cards,trumpf,spielArt):
         cards.loc[cards['Name'] == 'Unter','Trumpf'] = True
         #definiere Rangfolge der Karten unter Berücksichtigung Farbe
         cards = cards.sort_values(by=['Trumpf','Farbe','Basis Rang'],ascending=False)
-        # cards.groupby(['Basis Rang'])
+        cards['Spiel Rang'] = cards['Basis Rang']
+        # cards.loc[cards['Name'] == 'Ober', 'Spiel Rang'] = 0
+        # cards.loc[cards['Name'] == 'Unter', 'Spiel Rang'] = 4
+        for n,v in farben.items():
+            #setze einen Offset für die Farben
+            if n is not trumpf:
+                cards.loc[cards['Farbe'] == n,'Spiel Rang'] = cards.loc[cards['Farbe'] == n,'Spiel Rang'] + v*10 + 20
+            if n is trumpf:
+                cards.loc[cards['Farbe'] == n,'Spiel Rang'] = cards.loc[cards['Farbe'] == n,'Spiel Rang'] + 8
+            #setze die Ober und Unter Spielwerte
+            cards.loc[(cards['Name'] == 'Ober') & (cards['Farbe'] == n), 'Spiel Rang'] = v
+            cards.loc[(cards['Name'] == 'Unter') & (cards['Farbe'] == n), 'Spiel Rang'] = v + 4
+        cards = cards.sort_values(by='Spiel Rang')
+
+
     print(cards)
     return cards
 
