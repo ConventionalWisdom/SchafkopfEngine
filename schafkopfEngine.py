@@ -23,6 +23,15 @@ class SchafkopfLogik:
         print(basisKarten)
         return basisKarten
 
+    # def updateStatemachine(self):
+    #     #use this to govern transitions of the overall game statemachine; call after external interaction calls
+    #     #TODO: implement state machine transitions
+    #     if self.state == 'Austeilen':
+    #         print('.')
+    #     if self.state == 'RundenSpiel':
+    #         print('.')
+    #     return True
+
     def verteileKarten(self):
         #TODO: Karten mischen und Spielern zuweisen, in 2 ViererBlöcken für Klopf-Mechanismen
         karten = self.basisBlatt.copy()
@@ -101,11 +110,12 @@ class SchafkopfLogik:
         self.rundenBlatt = karten
         return True, str(self.spielerState[spieler]['Name'] + ' spielt, ' + self.spielerState[self.rollenIstDran]['Name'] + ' kommt raus') #TODO: more detailed
     
-    def starteSpiel(self):
+    def starteRunde(self):
         self.zugCounter = 0
+        self.zug = None
         self.rollenGeber = np.mod(self.rollenGeber+1,4)
         self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
-        self.liegt = []
+        self.rundeState = 'Austeilen'
         for i in range(0,4):
             self.spielerState[i]['gestellt'] = False
             self.spielerState[i]['gezogen'] = 0
@@ -130,7 +140,7 @@ class SchafkopfLogik:
             return False, str(self.spielerState[spieler]['Name'] + ' wollte spritzen, ist aber zu spät dran. Depp.')
         #TODO: Check ob der Spieler schon dran war
         self.spielerState[spieler]['gespritzt'] = True
-        return False, str('')
+        return True, str('')
 
     def prufeKarteLegal(self,spieler,kartenIdx):
         liegt = self.liegt
@@ -143,17 +153,46 @@ class SchafkopfLogik:
             return False #TODO: implement all that stuff...
         #TODO: a lot is missing here...
         return True
-        
+
+    def beendeZug(self):
+        #TODO: alle Aktionen, um den aktuellen Stich abzurechnen, herauszufinde wer ihn gewinnt und Tisch für neue Aktion frei zu machen
+
+        #neuer Zug bzw Ende der Runde
+        self.zug = None
+        self.zugCounter = self.zugCounter + 1
+        if self.zugCounter == 8:
+            self.beendeRunde()
+        return True
+
+    def beendeRunde(self):
+        #TODO: alle Aktionen, um eine Runde abzurechnen und die Punkte anzupassen
+        return True
 
     def spieleKarte(self,spieler,kartenIdx):
-        print('whoop')
-        #TODO: Implement
-        if len(liegt) == 0:
+        # print('whoop')
+        if spieler != self.rollenIstDran:
+            return False, str(self.spielerState[spieler]['Name'] + ' versucht zu spielen und ist nicht dran. Depp.')
+        if len(self.liegt) == 0:
+            #first in the round
             if karten[kartenIdx]['Trumpf']:
-                self.farbeGesucht = 'Trumpf'
+                angespielt = 'Trumpf'
             else:
-                self.farbeGesucht = karten[kartenIdx]['Name']
-        #implement all the turn logic here
+                angespielt = karten[kartenIdx]['Name']
+            liegt = [(spieler,kartenIdx)]
+            self.zug = {'gespielt':angespielt, 'liegt':liegt}
+        else:
+            #check whether legal card
+            if not self.prufeKarteLegal(spieler,kartenIdx):
+                return False, str(self.spielerState[spieler]['Name'] + ' hat einen illegalen Zug versucht. Depp.')
+            self.zug['liegt'].append((spieler,kartenIdx))
+
+        #wenn alle vier gespielt haben, rechne den Stich ab
+        if len(self.liegt) == 4:
+            self.beendeZug()
+
+        #weiter zum nächsten Spieler
+        self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
+
         return True
 
 
@@ -164,10 +203,10 @@ class SchafkopfLogik:
 
 if __name__ == "__main__":
     sl = SchafkopfLogik()
-    sl.verteileKarten()
-    print(sl.gebeKarten(0,0))
-    #warte auf  Spielentscheidung
-    #TODO: logik klopfen
-    #TODO: logik spielentscheidung
-    spielKarten = sl.setzeTrumpfUndSpiel(0,'Schelle','Farbspiel')
+    # sl.verteileKarten()
+    # print(sl.gebeKarten(0,0))
+    # #warte auf  Spielentscheidung
+    # #TODO: logik klopfen
+    # #TODO: logik spielentscheidung
+    # spielKarten = sl.setzeTrumpfUndSpiel(0,'Schelle','Farbspiel')
     #TODO: rundenlogik
