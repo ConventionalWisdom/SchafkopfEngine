@@ -4,7 +4,10 @@ from random import shuffle
 
 class SchafkopfLogik:
     #globale definitionen
-    farben = {'Eiche':0, 'Gras':1, 'Herz':2, 'Schelle':3}
+    farben = {'Eichel':0, 'Gras':1, 'Herz':2, 'Schelle':3}
+    spielerDict={'Name':'Typ', 'gezogen':0, 'gestellt':False, 'gespritzt':False, 'spielt':False}
+    spielerState = {0:spielerDict, 1:spielerDict, 2:spielerDict, 3:spielerDict}
+    gameStateMachine = {0:'NeuesSpiel', 1:'KartenVerteilt', 2:'Spiel', 3:'SpielBeendet'}
 
     def erstelleBlatt(self,blattLang):
         if blattLang == 'lang':
@@ -29,7 +32,7 @@ class SchafkopfLogik:
         zuordnung = {i:[] for i in range(0,4)} #benutze um den Spielern Kartenzuteilung zu zeigen
         sIdx = 0
         for i in range(0,len(karten.index)):
-            position[gemischt[i]] = 'Hand' + str(sIdx)
+            position[gemischt[i]] = 'H' + str(sIdx)
             if len(zuordnung[sIdx]) == 0:
                 zuordnung[sIdx] = [gemischt[i]]
             else:
@@ -38,22 +41,30 @@ class SchafkopfLogik:
         karten = karten.assign(Status=position)
         self.rundenBlatt = karten
         self.zuordnung = zuordnung
+        return True, str('Karten sind gemischt')
         # return karten, zuordnung
 
-    def gebeKarten(self,spieler,runde):
+    def gebeKarten(self,spieler):
         karten = self.rundenBlatt
         kartenProSpieler = len(karten.index)/4
-        if runde == 0:
+        if self.spielerState[spieler].gezogen == 0:
+            self.spielerState[spieler].gezogen = 4
             return karten.iloc[self.zuordnung[spieler][0:4]][['Farbe','Name']]
         else:
+            self.spielerState[spieler].gezogen = kartenProSpieler
             return karten.iloc[self.zuordnung[spieler][4:kartenProSpieler]]['Farbe','Name']
-
-    def setzeTrumpfUndSpiel(self,trumpf,spielArt):
+    
+    def setzeTrumpfUndSpiel(self,spieler,farbe,spielArt):
         karten = self.rundenBlatt
+        self.mitspieler = -1
+        if spielArt == 'Farbspiel':
+            trumpf = 'Herz'
+            self.suche = farbe
+        else:
+            trumpf = farbe
+            self.suche = 'nix'
         if spielArt == 'Farbspiel' or spielArt == 'Solo':
             #Farbspiel oder solo
-            if spielArt == 'Farbspiel':
-                trumpf = 'Herz'
             #definiere und markiere Trumpfkarten
             karten['Trumpf'] = False
             karten.loc[karten['Farbe'] == trumpf,'Trumpf'] = True
@@ -76,10 +87,80 @@ class SchafkopfLogik:
             karten = karten.drop(columns='Basis Rang')
             karten = karten.sort_values(by='Spiel Rang')
         print(karten)
+        #finde die Spieler
+        self.spielerState[spieler]['spielt'] = True
+        if self.suche != 'nix':
+            mitspieler = int(str(karten.loc[(karten['Farbe'] == self.suche) & (karten['Name'] == 'Ass'),'Status'].item())[1])
+            if spieler == mitspieler:
+                raise 
+            self.spieler = [spieler, mitspieler]
+            self.spielerState[mitspieler]['spielt'] = True
+        else:
+            self.spieler = [spieler]
+        print('Spieler ' + str(self.spieler))
         self.rundenBlatt = karten
+        return True, str(self.spielerState[spieler]['Name'] + ' spielt, ' + self.spielerState[self.rollenIstDran]['Name'] + ' kommt raus') #TODO: more detailed
+    
+    def starteSpiel(self):
+        self.zugCounter = 0
+        self.rollenGeber = np.mod(self.rollenGeber+1,4)
+        self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
+        self.liegt = []
+        for i in range(0,4):
+            self.spielerState[i]['gestellt'] = False
+            self.spielerState[i]['gezogen'] = 0
+            self.spielerState[i]['gespritzt'] = False
+            self.spielerState[i]['spielt'] = False
+        self.verteileKarten()
+        return True, str('Spiel kann losgehen, zieht eure Karten')
+    
+    def stelle(self, spieler):
+        if self.spielerState['gezogen'] < 5:
+            self.spielerState['gestellt'] = True
+            return True, str(self.spielerState[spieler]['Name'] + ' hat gestellt')
+        else 
+            return False, str(self.spielerState[spieler]['Name'] + ' hat zu spät gestellt. Depp.')
+    
+    def spritze(self, spieler):
+        if self.spielerState[spieler]['gezogen'] < len(self.basisBlatt.index)
+            return False, str(self.spielerState[spieler]['Name'] + ' wollte zu früh spritzen. Depp.')
+        if self.spielerState[spieler]['spielt']:
+            return False, str(self.spielerState[spieler]['Name'] + ' wollte spritzen und ist selber Spieler. Depp.')
+        if self.zugCounter > 0:
+            return False, str(self.spielerState[spieler]['Name'] + ' wollte spritzen, ist aber zu spät dran. Depp.')
+        #TODO: Check ob der Spieler schon dran war
+        self.spielerState[spieler]['gespritzt'] = True
+        return False, str('')
+
+    def prufeKarteLegal(self,spieler,kartenIdx):
+        liegt = self.liegt
+        karten = self.rundenBlatt
+        if len(liegt) == 0:
+            return True
+        gesucht = self.farbeGesucht
+        farbe = karten[kartenIdx]['Farbe']
+        if farbe != gesucht:
+            return False #TODO: implement all that stuff...
+        #TODO: a lot is missing here...
+        return True
+        
+
+    def spieleKarte(self,spieler,kartenIdx):
+        print('whoop')
+        #TODO: Implement
+        if len(liegt) == 0:
+            if karten[kartenIdx]['Trumpf']:
+                self.farbeGesucht = 'Trumpf'
+            else:
+                self.farbeGesucht = karten[kartenIdx]['Name']
+        #implement all the turn logic here
+        return True
+
 
     def __init__(self):
         self.basisBlatt = self.erstelleBlatt('lang')
+        self.rollenGeber = 3
+        self.rollenIstDran = 0
 
 if __name__ == "__main__":
     sl = SchafkopfLogik()
@@ -88,5 +169,5 @@ if __name__ == "__main__":
     #warte auf  Spielentscheidung
     #TODO: logik klopfen
     #TODO: logik spielentscheidung
-    spielKarten = sl.setzeTrumpfUndSpiel('Eiche','Farbspiel')
+    spielKarten = sl.setzeTrumpfUndSpiel(0,'Schelle','Farbspiel')
     #TODO: rundenlogik
