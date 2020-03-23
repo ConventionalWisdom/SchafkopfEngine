@@ -6,7 +6,7 @@ class SchafkopfLogik:
     #globale definitionen
     farben = {'Eichel':0, 'Gras':1, 'Herz':2, 'Schelle':3}
     spielerDict={'Name':'Typ', 'gezogen':0, 'gestellt':False, 'gespritzt':False, 'spielt':False}
-    spielerState = {0:spielerDict, 1:spielerDict, 2:spielerDict, 3:spielerDict}
+    spielerState = {0:spielerDict.copy(), 1:spielerDict.copy(), 2:spielerDict.copy(), 3:spielerDict.copy()}
     gameStateMachine = {0:'NeuesSpiel', 1:'KartenVerteilt', 2:'Spiel', 3:'SpielBeendet'}
 
     def erstelleBlatt(self,blattLang):
@@ -48,23 +48,23 @@ class SchafkopfLogik:
                 zuordnung[sIdx].append(gemischt[i])
             sIdx = np.mod(sIdx+1,4)
         karten = karten.assign(Status=position)
-        self.rundenBlatt = karten
+        self.spielBlatt = karten
         self.zuordnung = zuordnung
         return True, str('Karten sind gemischt')
         # return karten, zuordnung
 
-    def gebeKarten(self,spieler):
-        karten = self.rundenBlatt
-        kartenProSpieler = len(karten.index)/4
-        if self.spielerState[spieler].gezogen == 0:
-            self.spielerState[spieler].gezogen = 4
-            return karten.iloc[self.zuordnung[spieler][0:4]][['Farbe','Name']]
+    def gebeKarten(self,spielerId):
+        karten = self.spielBlatt
+        kartenProSpieler = int(len(karten.index)/4)
+        if self.spielerState[spielerId]['gezogen'] == 0:
+            self.spielerState[spielerId]['gezogen'] = 4
+            return karten.iloc[self.zuordnung[spielerId][0:4]][['Farbe','Name']]
         else:
-            self.spielerState[spieler].gezogen = kartenProSpieler
-            return karten.iloc[self.zuordnung[spieler][4:kartenProSpieler]]['Farbe','Name']
+            self.spielerState[spielerId]['gezogen'] = kartenProSpieler
+            return karten.iloc[self.zuordnung[spielerId][4:kartenProSpieler]][['Farbe','Name']]
     
-    def setzeTrumpfUndSpiel(self,spieler,farbe,spielArt):
-        karten = self.rundenBlatt
+    def setzeTrumpfUndSpiel(self,spielerId,farbe,spielArt):
+        karten = self.spielBlatt
         self.mitspieler = -1
         if spielArt == 'Farbspiel':
             trumpf = 'Herz'
@@ -97,22 +97,22 @@ class SchafkopfLogik:
             karten = karten.sort_values(by='Spiel Rang')
         print(karten)
         #finde die Spieler
-        self.spielerState[spieler]['spielt'] = True
+        self.spielerState[spielerId]['spielt'] = True
         if self.suche != 'nix':
-            mitspieler = int(str(karten.loc[(karten['Farbe'] == self.suche) & (karten['Name'] == 'Ass'),'Status'].item())[1])
-            if spieler == mitspieler:
+            mitspielerId = int(str(karten.loc[(karten['Farbe'] == self.suche) & (karten['Name'] == 'Ass'),'Status'].item())[1])
+            if spielerId == mitspielerId:
                 raise 
-            self.spieler = [spieler, mitspieler]
-            self.spielerState[mitspieler]['spielt'] = True
+            self.spielerId = [spielerId, mitspielerId]
+            self.spielerState[mitspielerId]['spielt'] = True
         else:
-            self.spieler = [spieler]
-        print('Spieler ' + str(self.spieler))
-        self.rundenBlatt = karten
-        return True, str(self.spielerState[spieler]['Name'] + ' spielt, ' + self.spielerState[self.rollenIstDran]['Name'] + ' kommt raus') #TODO: more detailed
+            self.spielerId = [spielerId]
+        print('Spieler ' + str(self.spielerId))
+        self.spielBlatt = karten
+        return True, str(self.spielerState[spielerId]['Name'] + ' spielt, ' + self.spielerState[self.rollenIstDran]['Name'] + ' kommt raus') #TODO: more detailed
     
-    def starteRunde(self):
+    def starteSpiel(self):
         self.zugCounter = 0
-        self.zug = None
+        self.stich = {}
         self.rollenGeber = np.mod(self.rollenGeber+1,4)
         self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
         self.rundeState = 'Austeilen'
@@ -128,11 +128,11 @@ class SchafkopfLogik:
         if self.spielerState['gezogen'] < 5:
             self.spielerState['gestellt'] = True
             return True, str(self.spielerState[spieler]['Name'] + ' hat gestellt')
-        else 
+        else:
             return False, str(self.spielerState[spieler]['Name'] + ' hat zu spät gestellt. Depp.')
     
     def spritze(self, spieler):
-        if self.spielerState[spieler]['gezogen'] < len(self.basisBlatt.index)
+        if self.spielerState[spieler]['gezogen'] < len(self.basisBlatt.index):
             return False, str(self.spielerState[spieler]['Name'] + ' wollte zu früh spritzen. Depp.')
         if self.spielerState[spieler]['spielt']:
             return False, str(self.spielerState[spieler]['Name'] + ' wollte spritzen und ist selber Spieler. Depp.')
@@ -143,57 +143,64 @@ class SchafkopfLogik:
         return True, str('')
 
     def prufeKarteLegal(self,spieler,kartenIdx):
-        liegt = self.liegt
-        karten = self.rundenBlatt
-        if len(liegt) == 0:
+        karten = self.spielBlatt
+        stich = self.stich
+        if len(stich.items()) == 0:
             return True
-        gesucht = self.farbeGesucht
-        farbe = karten[kartenIdx]['Farbe']
-        if farbe != gesucht:
+        gesucht = stich['gespielt']
+        farbe = karten.at[kartenIdx,'Farbe']
+        trumpf = karten.at[kartenIdx,'Trumpf']
+        if (farbe != gesucht) & (~trumpf):
             return False #TODO: implement all that stuff...
         #TODO: a lot is missing here...
         return True
 
-    def beendeZug(self):
+    def beendeStich(self):
         #TODO: alle Aktionen, um den aktuellen Stich abzurechnen, herauszufinde wer ihn gewinnt und Tisch für neue Aktion frei zu machen
 
         #neuer Zug bzw Ende der Runde
-        self.zug = None
+        self.stich = {}
         self.zugCounter = self.zugCounter + 1
         if self.zugCounter == 8:
-            self.beendeRunde()
+            self.beendeSpiel()
+        return True, str('Stich beendet, xxx kommt raus')
+
+    def beendeSpiel(self):
+        #TODO: alle Aktionen, um ein Spiel abzurechnen und die Punkte anzupassen
+        for i in range(0,4):
+            self.spielerState[i]['spielt'] = False
         return True
 
-    def beendeRunde(self):
-        #TODO: alle Aktionen, um eine Runde abzurechnen und die Punkte anzupassen
-        return True
-
-    def spieleKarte(self,spieler,kartenIdx):
+    def spieleKarte(self,spielerId,kartenIdx):
         # print('whoop')
-        if spieler != self.rollenIstDran:
-            return False, str(self.spielerState[spieler]['Name'] + ' versucht zu spielen und ist nicht dran. Depp.')
-        if len(self.liegt) == 0:
+        karten = self.spielBlatt
+        if spielerId != self.rollenIstDran:
+            return False, str(self.spielerState[spielerId]['Name'] + ' versucht zu spielen und ist nicht dran. Depp.')
+        if len(self.stich) == 0:
             #first in the round
-            if karten[kartenIdx]['Trumpf']:
+            if karten.at[kartenIdx,'Trumpf']:
                 angespielt = 'Trumpf'
             else:
-                angespielt = karten[kartenIdx]['Name']
-            liegt = [(spieler,kartenIdx)]
-            self.zug = {'gespielt':angespielt, 'liegt':liegt}
+                angespielt = karten.at[kartenIdx,'Farbe']
+            liegt = [(spielerId,kartenIdx)]
+            self.stich = {'gespielt':angespielt, 'liegt':liegt}
         else:
             #check whether legal card
-            if not self.prufeKarteLegal(spieler,kartenIdx):
-                return False, str(self.spielerState[spieler]['Name'] + ' hat einen illegalen Zug versucht. Depp.')
-            self.zug['liegt'].append((spieler,kartenIdx))
-
-        #wenn alle vier gespielt haben, rechne den Stich ab
-        if len(self.liegt) == 4:
-            self.beendeZug()
+            if not self.prufeKarteLegal(spielerId,kartenIdx):
+                return False, str(self.spielerState[spielerId]['Name'] + ' hat einen illegalen Zug versucht. Depp.')
+            self.stich['liegt'].append((spielerId,kartenIdx))
 
         #weiter zum nächsten Spieler
         self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
 
-        return True
+        #wenn alle vier gespielt haben, rechne den Stich ab und stelle fest, wer heraus kommt
+        msgStr = str('Spieler ' + str(spielerId) + ' hat ' + karten.at[idx,'Farbe'] + ' ' + karten.at[idx,'Name'] + ' gespielt')
+        ret = True
+        if len(self.stich['liegt']) == 4:
+            ret, tStr = self.beendeZug()
+            msgStr = msgStr + '\n' + tStr
+
+        return ret, msgStr
 
 
     def __init__(self):
@@ -203,10 +210,25 @@ class SchafkopfLogik:
 
 if __name__ == "__main__":
     sl = SchafkopfLogik()
-    # sl.verteileKarten()
-    # print(sl.gebeKarten(0,0))
-    # #warte auf  Spielentscheidung
-    # #TODO: logik klopfen
-    # #TODO: logik spielentscheidung
-    # spielKarten = sl.setzeTrumpfUndSpiel(0,'Schelle','Farbspiel')
-    #TODO: rundenlogik
+    ret, msg =sl.starteSpiel()
+    print(msg)
+    cards = {}
+    for a in range(0,4):
+        print('##### Spieler ' + str(a) + ': ')
+        k1 = sl.gebeKarten(a)
+        k2 = sl.gebeKarten(a)
+        cards[a] = pd.concat([k1,k2])
+    print('##### Setze Trumpf und Spiel')
+    ret, msg = sl.setzeTrumpfUndSpiel(0,'Eichel','Farbspiel')
+    print(msg)
+    for r in range(0,8):
+        for s in range(0,4):
+            sIdx = sl.rollenIstDran
+            print('Spieler ' + str(sIdx) + ' ist dran. Karten auf der Hand:')
+            print(cards[s])
+            idx = int(input('tell me which card to play [by index]'))
+            ret, msg = sl.spieleKarte(sIdx,idx)
+            print(msg)
+            cards[s] = cards[s].drop(idx)
+            # print('Spieler ' + str(sIdx) + 'hat gespielt. Verbleibende Karten auf der Hand:')
+            # print(cards[s])
