@@ -96,6 +96,7 @@ class SchafkopfLogik:
             karten = karten.drop(columns='Basis Rang')
             karten = karten.sort_values(by='Spiel Rang')
         print(karten)
+        #TODO: add functions for Wenz etc.
         #finde die Spieler
         self.spielerState[spielerId]['spielt'] = True
         if self.suche != 'nix':
@@ -156,7 +157,7 @@ class SchafkopfLogik:
         return True
 
     def beendeStich(self):
-        #TODO: alle Aktionen, um den aktuellen Stich abzurechnen, herauszufinde wer ihn gewinnt und Tisch für neue Aktion frei zu machen
+        #TODO: alle Aktionen, um den aktuellen Stich abzurechnen, herauszufinden wer ihn gewinnt und Tisch für neue Aktion frei zu machen
 
         #neuer Zug bzw Ende der Runde
         self.stich = {}
@@ -197,7 +198,7 @@ class SchafkopfLogik:
         msgStr = str('Spieler ' + str(spielerId) + ' hat ' + karten.at[idx,'Farbe'] + ' ' + karten.at[idx,'Name'] + ' gespielt')
         ret = True
         if len(self.stich['liegt']) == 4:
-            ret, tStr = self.beendeZug()
+            ret, tStr = self.beendeStich()
             msgStr = msgStr + '\n' + tStr
 
         return ret, msgStr
