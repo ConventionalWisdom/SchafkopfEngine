@@ -56,12 +56,13 @@ class SchafkopfLogik:
     def gebeKarten(self,spielerId):
         karten = self.spielBlatt
         kartenProSpieler = int(len(karten.index)/4)
+        kartenProZug = kartenProSpieler / 2
         if self.spielerState[spielerId]['gezogen'] == 0:
-            self.spielerState[spielerId]['gezogen'] = 4
-            return karten.iloc[self.zuordnung[spielerId][0:4]][['Farbe','Name']]
+            self.spielerState[spielerId]['gezogen'] = kartenProZug
+            return karten.iloc[self.zuordnung[spielerId][0:kartenProZug]][['Farbe','Name']]
         else:
             self.spielerState[spielerId]['gezogen'] = kartenProSpieler
-            return karten.iloc[self.zuordnung[spielerId][4:kartenProSpieler]][['Farbe','Name']]
+            return karten.iloc[self.zuordnung[spielerId][kartenProZug:kartenProSpieler]][['Farbe','Name']]
     
     def setzeTrumpfUndSpiel(self,spielerId,farbe,spielArt):
         karten = self.spielBlatt
