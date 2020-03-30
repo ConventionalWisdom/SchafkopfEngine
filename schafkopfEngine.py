@@ -171,7 +171,7 @@ class SchafkopfLogik:
         kartenIdx = [kId for sId, kId in self.stich['liegt']]
         liegt = self.spielBlatt.loc[kartenIdx]
         #jetzt einfach die höchste liegende Karte finden (Farbe oder Trump), sehen wer die auf der Hand hatte und index extrahieren
-        stecher = int(liegt[liegt.Farbe == gespielt | liegt.Trumpf].sort_values('Spiel Rang').iloc[0]['Status'].endswith())
+        stecher = int(liegt[(liegt.Farbe == gespielt) | (liegt.Trumpf)].sort_values('Spiel Rang').iloc[0]['Status'][-1])
         liegt['Status'] = 'S'+str(stecher)
 
         #stecher kommt raus
@@ -218,7 +218,7 @@ class SchafkopfLogik:
         self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
 
         #wenn alle vier gespielt haben, rechne den Stich ab und stelle fest, wer heraus kommt
-        msgStr = str('Spieler ' + str(spielerId) + ' hat ' + karten.at[idx,'Farbe'] + ' ' + karten.at[idx,'Name'] + ' gespielt')
+        msgStr = str('Spieler ' + str(spielerId) + ' hat ' + karten.at[kartenIdx,'Farbe'] + ' ' + karten.at[kartenIdx,'Name'] + ' gespielt')
         ret = True
         if len(self.stich['liegt']) == 4:
             ret, tStr = self.beendeStich()
@@ -253,7 +253,8 @@ if __name__ == "__main__":
             print(cards[sIdx])
             # idx = int(input('tell me which card to play [by index]'))
             legal = sl.erlaubteKarten(sIdx)
-            ret, msg = sl.spieleKarte(sIdx,legal[0])
+            idx = legal[0]
+            ret, msg = sl.spieleKarte(sIdx,idx)
             print(msg)
             cards[sIdx] = cards[sIdx].drop(idx)
             # print('Spieler ' + str(sIdx) + 'hat gespielt. Verbleibende Karten auf der Hand:')
