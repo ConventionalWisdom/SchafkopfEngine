@@ -7,13 +7,13 @@ class SchafkopfLogik:
     farben = {'Eichel':0, 'Gras':1, 'Herz':2, 'Schelle':3}
     spielerDict={'Name':'Typ', 'gezogen':0, 'gestellt':False, 'gespritzt':False, 'spielt':False}
     spielerState = {0:spielerDict.copy(), 1:spielerDict.copy(), 2:spielerDict.copy(), 3:spielerDict.copy()}
-    gameStateMachine = {0:'NeuesSpiel', 1:'KartenVerteilt', 2:'Spiel', 3:'SpielBeendet'}
+    spielZustände = {0:'NeuesSpiel', 1:'KartenVerteilt', 2:'Spiel', 3:'SpielBeendet'}
 
     def erstelleBlatt(self,blattLang):
         if blattLang == 'lang':
             niedrigste = 7
         else:
-            niedrigste = 8
+            niedrigste = 9
         werte = {'Ass':11, '10':10, 'König':4, 'Ober':3, 'Unter':2}
         basisRang = {'Ass':0, '10':1, 'König':2, 'Ober':3, 'Unter':4}
         for i,p in enumerate(range(9,niedrigste-1,-1)):
@@ -56,7 +56,7 @@ class SchafkopfLogik:
     def gebeKarten(self,spielerId):
         karten = self.spielBlatt
         kartenProSpieler = int(len(karten.index)/4)
-        kartenProZug = kartenProSpieler / 2
+        kartenProZug = int(kartenProSpieler / 2)
         if self.spielerState[spielerId]['gezogen'] == 0:
             self.spielerState[spielerId]['gezogen'] = kartenProZug
             return karten.iloc[self.zuordnung[spielerId][0:kartenProZug]][['Farbe','Name']]
@@ -110,6 +110,7 @@ class SchafkopfLogik:
             self.spielerId = [spielerId]
         print('Spieler ' + str(self.spielerId))
         self.spielBlatt = karten
+        self.darfKartenLegen = True
         return True, str(self.spielerState[spielerId]['Name'] + ' spielt, ' + self.spielerState[self.rollenIstDran]['Name'] + ' kommt raus') #TODO: more detailed
     
     def starteSpiel(self):
@@ -117,7 +118,6 @@ class SchafkopfLogik:
         self.stich = {}
         self.rollenGeber = np.mod(self.rollenGeber+1,4)
         self.rollenIstDran = np.mod(self.rollenIstDran+1,4)
-        self.rundeState = 'Austeilen'
         for i in range(0,4):
             self.spielerState[i]['gestellt'] = False
             self.spielerState[i]['gezogen'] = 0
@@ -144,39 +144,60 @@ class SchafkopfLogik:
         self.spielerState[spieler]['gespritzt'] = True
         return True, str('')
 
-    def prufeKarteLegal(self,spieler,kartenIdx):
+    def erlaubteKarten(self,spieler):
+        #finde alle karten, die aktuell vom Spieler gelegt werden dürfen
         karten = self.spielBlatt
         stich = self.stich
+        hand = self.spielBlatt[self.spielBlatt.Status == 'H'+str(spieler)]
         if len(stich.items()) == 0:
-            return True
+            return hand.index
         gesucht = stich['gespielt']
-        farbe = karten.at[kartenIdx,'Farbe']
-        trumpf = karten.at[kartenIdx,'Trumpf']
-        if (farbe != gesucht) & (~trumpf):
-            return False #TODO: implement all that stuff...
-        #TODO: a lot is missing here...
-        return True
+        if gesucht == 'Trumpf':
+            #hat der Spieler Trumpf?
+            legal = hand[hand.Trumpf]
+        else:
+            #hat der Spieler die Farbe?
+            legal = hand[hand.Farbe == gesucht]
+
+        if len(legal) == 0:
+            return hand.index
+        else:
+            return legal.index
+                
 
     def beendeStich(self):
         #TODO: alle Aktionen, um den aktuellen Stich abzurechnen, herauszufinden wer ihn gewinnt und Tisch für neue Aktion frei zu machen
+        gespielt = self.stich['gespielt']
+        kartenIdx = [kId for sId, kId in self.stich['liegt']]
+        liegt = self.spielBlatt.loc[kartenIdx]
+        #jetzt einfach die höchste liegende Karte finden (Farbe oder Trump), sehen wer die auf der Hand hatte und index extrahieren
+        stecher = int(liegt[liegt.Farbe == gespielt | liegt.Trumpf].sort_values('Spiel Rang').iloc[0]['Status'].endswith())
+        liegt['Status'] = 'S'+str(stecher)
+
+        #stecher kommt raus
+        self.rollenIstDran = stecher
 
         #neuer Zug bzw Ende der Runde
         self.stich = {}
         self.zugCounter = self.zugCounter + 1
         if self.zugCounter == 8:
-            self.beendeSpiel()
-        return True, str('Stich beendet, xxx kommt raus')
+            ret, msg = self.beendeSpiel()
+            return True, msg
+        return True, str('Stich beendet, Spieler ' + str(stecher) + ' kommt raus')
 
     def beendeSpiel(self):
+        msg = ''
         #TODO: alle Aktionen, um ein Spiel abzurechnen und die Punkte anzupassen
+        self.darfKartenLegen = False
         for i in range(0,4):
             self.spielerState[i]['spielt'] = False
-        return True
+        self.rollenGeber = np.mod(self.rollenGeber+1,4)
+        return True, msg
 
     def spieleKarte(self,spielerId,kartenIdx):
         # print('whoop')
         karten = self.spielBlatt
-        if spielerId != self.rollenIstDran:
+        if spielerId != self.rollenIstDran or not self.darfKartenLegen:
             return False, str(self.spielerState[spielerId]['Name'] + ' versucht zu spielen und ist nicht dran. Depp.')
         if len(self.stich) == 0:
             #first in the round
@@ -188,7 +209,8 @@ class SchafkopfLogik:
             self.stich = {'gespielt':angespielt, 'liegt':liegt}
         else:
             #check whether legal card
-            if not self.prufeKarteLegal(spielerId,kartenIdx):
+            legal = self.erlaubteKarten(spielerId)
+            if kartenIdx not in legal:
                 return False, str(self.spielerState[spielerId]['Name'] + ' hat einen illegalen Zug versucht. Depp.')
             self.stich['liegt'].append((spielerId,kartenIdx))
 
@@ -209,6 +231,7 @@ class SchafkopfLogik:
         self.basisBlatt = self.erstelleBlatt('lang')
         self.rollenGeber = 3
         self.rollenIstDran = 0
+        self.darfKartenLegen = False
 
 if __name__ == "__main__":
     sl = SchafkopfLogik()
@@ -227,10 +250,11 @@ if __name__ == "__main__":
         for s in range(0,4):
             sIdx = sl.rollenIstDran
             print('Spieler ' + str(sIdx) + ' ist dran. Karten auf der Hand:')
-            print(cards[s])
-            idx = int(input('tell me which card to play [by index]'))
-            ret, msg = sl.spieleKarte(sIdx,idx)
+            print(cards[sIdx])
+            # idx = int(input('tell me which card to play [by index]'))
+            legal = sl.erlaubteKarten(sIdx)
+            ret, msg = sl.spieleKarte(sIdx,legal[0])
             print(msg)
-            cards[s] = cards[s].drop(idx)
+            cards[sIdx] = cards[sIdx].drop(idx)
             # print('Spieler ' + str(sIdx) + 'hat gespielt. Verbleibende Karten auf der Hand:')
             # print(cards[s])
