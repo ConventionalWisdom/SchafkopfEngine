@@ -5,9 +5,11 @@ from random import shuffle
 class SchafkopfLogik:
     #globale definitionen
     farben = {'Eichel':0, 'Gras':1, 'Herz':2, 'Schelle':3}
-    spielerDict={'Name':'Typ', 'gezogen':0, 'gestellt':False, 'gespritzt':False, 'spielt':False}
+    spielerDict={'Name':'Typ', 'Score':0, 'gezogen':0, 'gestellt':False, 'gespritzt':False, 'spielt':False}
     spielerState = {0:spielerDict.copy(), 1:spielerDict.copy(), 2:spielerDict.copy(), 3:spielerDict.copy()}
-    spielZustände = {0:'NeuesSpiel', 1:'KartenVerteilt', 2:'Spiel', 3:'SpielBeendet'}
+    # spielZustände = {0:'NeuesSpiel', 1:'KartenVerteilt', 2:'Spiel', 3:'SpielBeendet'}
+    satz =  {'Spiel':10,'Lauf':10}
+
 
     def erstelleBlatt(self,blattLang):
         if blattLang == 'lang':
@@ -33,6 +35,9 @@ class SchafkopfLogik:
     #     return True
 
     def verteileKarten(self):
+        #setze Spielerstatus zurueck
+        for i in range(0,4):
+            self.spielerState[i]['spielt'] = False
         #TODO: Karten mischen und Spielern zuweisen, in 2 ViererBlöcken für Klopf-Mechanismen
         karten = self.basisBlatt.copy()
         gemischt = [i for i in range(0,len(karten.index))]
@@ -110,6 +115,7 @@ class SchafkopfLogik:
             self.spielerId = [spielerId]
         print('Spieler ' + str(self.spielerId))
         self.spielBlatt = karten
+        self.spielart = spielArt
         self.darfKartenLegen = True
         return True, str(self.spielerState[spielerId]['Name'] + ' spielt, ' + self.spielerState[self.rollenIstDran]['Name'] + ' kommt raus') #TODO: more detailed
     
@@ -188,9 +194,64 @@ class SchafkopfLogik:
     def beendeSpiel(self):
         msg = ''
         #TODO: alle Aktionen, um ein Spiel abzurechnen und die Punkte anzupassen
-        self.darfKartenLegen = False
+        karten = self.spielBlatt
+        punkte = [0, 0] #spieler, nichtspieler
         for i in range(0,4):
-            self.spielerState[i]['spielt'] = False
+            searchStr = 'S'+str(i)
+            pts = karten[karten.Status == searchStr]['Wert'].sum()
+            if self.spielerState[i]['spielt']:
+                punkte[0] = punkte[0] + pts
+            else:
+                punkte[1] = punkte[1] + pts
+        
+
+
+        #finde laufende
+        bonusLauf = 0
+        sK = karten.sort_values('Spiel Rang')
+        for i in range(0,4):
+            lauf = i+1
+            spielerIdx = int(sK.iloc(i)['Status'][-1])
+            priorteam = team
+            team = self.spielerState['spielt']
+            if (i>0) &  (priorteam != team):
+                break
+        #TODO: Wenz und andere Sonderregeln...
+
+        if (self.spielart == 'Farbspiel') & (lauf > 2):
+            bonusLauf = lauf * self.satz['Lauf']
+        if (self.spielart == 'Wenz') & (lauf > 1):
+            bonusLauf = lauf * self.satz['Lauf']
+
+        #Prüfe Schneider
+        bonusSchneider = 0
+        if summePunkte < 30:
+            bonusSchneider = self.satz['Lauf']
+
+        #Faktor Klopfen, Spritzen etc
+        #TODO: setze maximum?
+        faktor = 1
+        for i in range(0,4):
+            state = self.spielerState[i]
+            if (state['gestellt']) | (state['gespritzt']):
+                faktor = faktor * 2
+
+        #Summation und Gutschrift
+        summePunkte = faktor * (self.satz['Spiel'] + bonusLauf + bonusSchneider)
+        spielerGewonnen = True
+        if punkte[0]>=punkte[1]:
+            msg = 'Spieler gewinnen'
+        else:
+            msg = 'Nichtspieler gewinnen'
+            spielerGewonnen = False
+        
+        #schreibe punkte gut
+        for i in range(0,4):
+            if self.spielerState[i]['spielt'] == spielerGewonnen:
+                self.spielerState[i]['Score'] = self.spielerState[i]['Score'] + summePunkte
+
+        #Sicherstellen dass niemand Karten legt und Geber weiterschieben
+        self.darfKartenLegen = False
         self.rollenGeber = np.mod(self.rollenGeber+1,4)
         return True, msg
 
