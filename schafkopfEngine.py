@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import schafkopfDumbAi as ai
 from random import shuffle
 
 class SchafkopfLogik:
@@ -178,7 +179,7 @@ class SchafkopfLogik:
         liegt = self.spielBlatt.loc[kartenIdx]
         #jetzt einfach die höchste liegende Karte finden (Farbe oder Trump), sehen wer die auf der Hand hatte und index extrahieren
         stecher = int(liegt[(liegt.Farbe == gespielt) | (liegt.Trumpf)].sort_values('Spiel Rang').iloc[0]['Status'][-1])
-        liegt['Status'] = 'S'+str(stecher)
+        self.spielBlatt.loc[liegt.index,'Status'] = 'S'+str(stecher)
 
         #stecher kommt raus
         self.rollenIstDran = stecher
@@ -204,17 +205,16 @@ class SchafkopfLogik:
             else:
                 punkte[1] = punkte[1] + pts
         
-
-
         #finde laufende
         bonusLauf = 0
         sK = karten.sort_values('Spiel Rang')
+        team = True
         for i in range(0,4):
             lauf = i+1
-            spielerIdx = int(sK.iloc(i)['Status'][-1])
+            spielerIdx = int(sK.iloc[i]['Status'][-1])
             priorteam = team
-            team = self.spielerState['spielt']
-            if (i>0) &  (priorteam != team):
+            team = self.spielerState[spielerIdx]['spielt']
+            if (i>0) & (priorteam != team):
                 break
         #TODO: Wenz und andere Sonderregeln...
 
@@ -225,7 +225,7 @@ class SchafkopfLogik:
 
         #Prüfe Schneider
         bonusSchneider = 0
-        if summePunkte < 30:
+        if np.min(punkte) < 30:
             bonusSchneider = self.satz['Lauf']
 
         #Faktor Klopfen, Spritzen etc
@@ -249,6 +249,8 @@ class SchafkopfLogik:
         for i in range(0,4):
             if self.spielerState[i]['spielt'] == spielerGewonnen:
                 self.spielerState[i]['Score'] = self.spielerState[i]['Score'] + summePunkte
+            else:
+                self.spielerState[i]['Score'] = self.spielerState[i]['Score'] - summePunkte
 
         #Sicherstellen dass niemand Karten legt und Geber weiterschieben
         self.darfKartenLegen = False
@@ -298,25 +300,24 @@ if __name__ == "__main__":
     sl = SchafkopfLogik()
     ret, msg =sl.starteSpiel()
     print(msg)
-    cards = {}
+    spieler = {}
     for a in range(0,4):
         print('##### Spieler ' + str(a) + ': ')
-        k1 = sl.gebeKarten(a)
-        k2 = sl.gebeKarten(a)
-        cards[a] = pd.concat([k1,k2])
+        neueAi = ai.playerStupidAI(a)
+        neueAi.kartenNehmen(sl)
+        spieler[a] = neueAi
     print('##### Setze Trumpf und Spiel')
-    ret, msg = sl.setzeTrumpfUndSpiel(0,'Eichel','Farbspiel')
+    for s in range(0,4):
+        if int(sl.spielBlatt[(sl.spielBlatt.Farbe == 'Eichel') & (sl.spielBlatt.Name == 'Ass')]['Status'].values[0][-1]) != s:
+            ret, msg = sl.setzeTrumpfUndSpiel(s,'Eichel','Farbspiel')
+            break
     print(msg)
     for r in range(0,8):
         for s in range(0,4):
             sIdx = sl.rollenIstDran
             print('Spieler ' + str(sIdx) + ' ist dran. Karten auf der Hand:')
-            print(cards[sIdx])
+            print(spieler[sIdx].karten)
+            spieler[sIdx].spielen(sl)
             # idx = int(input('tell me which card to play [by index]'))
-            legal = sl.erlaubteKarten(sIdx)
-            idx = legal[0]
-            ret, msg = sl.spieleKarte(sIdx,idx)
-            print(msg)
-            cards[sIdx] = cards[sIdx].drop(idx)
             # print('Spieler ' + str(sIdx) + 'hat gespielt. Verbleibende Karten auf der Hand:')
             # print(cards[s])
